@@ -90,6 +90,26 @@ services:
       postgres:
         condition: service_healthy
 
+  app-list-api-django:
+    build:
+      context: ./services/app-list-api-django
+    container_name: sahabino-app-list-api-django
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      # Always 5432 here regardless of the host-side POSTGRES_PORT in .env:
+      # this is container-to-container traffic on the internal docker network,
+      # which always uses the port postgres listens on inside its own container.
+      POSTGRES_PORT: 5432
+    ports:
+      - "${APP_LIST_API_DJANGO_PORT:-8002}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   kafka-data:

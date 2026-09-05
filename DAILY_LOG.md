@@ -49,3 +49,29 @@
 - Reuse the same four endpoints and behavior (soft-delete, active_only filter, 409 on duplicate package_name, 404 on missing id) so both implementations are interchangeable from a client's perspective.
 - Add the Django service to `docker-compose.yml` on its own port, with the same `depends_on: postgres: condition: service_healthy` pattern.
 - Write an equivalent pytest/Django test suite against a separate test database, mirroring today's FastAPI test coverage.
+
+## Day 3 — 2026-09-05
+
+### Done
+- Built `services/app-list-api-django`: a second, independent CRUD implementation for the same `apps` table, using Django + Django REST Framework + drf-spectacular. Scaffolded via `django-admin startproject config .` and `python manage.py startapp apps_api`, with `INSTALLED_APPS`/`MIDDLEWARE` trimmed to what a pure JSON API service actually needs (no admin site, sessions, or auth app).
+- Defined the `App` model (`apps_api/models.py`) with `Meta.managed = False` and `db_table = "apps"`, and an explicit `id = models.AutoField(...)` (not the project's default `BigAutoField`) so it matches the real column's 32-bit `integer` type exactly. Ran `makemigrations` to record the model state; confirmed `migrate` correctly no-ops the `apps` table (only creates Django's own `django_migrations`/`django_content_type` bookkeeping tables) and leaves the existing 16-row table completely untouched.
+- Implemented `POST /apps/`, `GET /apps/` (`active_only` param), `PATCH /apps/{id}/` (partial update of `package_name`/`name`/`category`), and `DELETE /apps/{id}/` (soft delete) via a custom DRF `GenericViewSet`, restricted to exactly those four operations (no retrieve, no PUT). Duplicate `package_name` returns a clean 409 (via an `IntegrityError` catch, matching the FastAPI service's exact status code and message) on both create and update; unknown ids return DRF's standard 404.
+- Wired `DATABASES` to the same `POSTGRES_*` environment variables as the FastAPI service, so both point at the identical `sahabino` database and `apps` table.
+- Set up a `conftest.py` that overrides pytest-django's `django_db_setup` fixture to run the same `CREATE TABLE apps (...)` DDL as the FastAPI service's Alembic migration (copied by hand, with a comment flagging it needs to stay in sync) against a distinct test database (`sahabino_test_django`, separate from the FastAPI service's `sahabino_test`) before the test session, and drops it after.
+- Wrote a DRF `APIClient` test suite (11 tests) mirroring the FastAPI service's coverage: create, duplicate package_name (create and patch), invalid category, list, active_only filtering, partial update including package_name, 404s on unknown id, and soft-delete behavior. All pass, both from a local venv and from inside the docker compose network.
+- Wrote a `Dockerfile` (gunicorn, running `migrate --noinput` first) and added `app-list-api-django` to `docker-compose.yml` on port 8002, depending only on `postgres: condition: service_healthy` — deliberately not depending on `app-list-api-fastapi`, since the two are independent services that happen to share a database.
+- Ran the manual cross-service consistency check: created an app via FastAPI's `POST /apps` and confirmed it appeared via Django's `GET /apps/`, then created one via Django's `POST /apps/` and confirmed it appeared via FastAPI's `GET /apps`. Both directions worked immediately (both test rows removed afterward) — confirms the two services are genuinely reading and writing the same table.
+
+### Learned
+<!-- TODO: do NOT fill this in. The user must fill this in themselves, in their own words, after reviewing what was actually built. -->
+
+### Blockers / questions to raise
+- DRF's default `UNAUTHENTICATED_USER` setting (`AnonymousUser`) lazily imports `django.contrib.auth.models` on every request, which fails once `django.contrib.auth` is removed from `INSTALLED_APPS` (as it is here, since this is an unauthenticated internal service with no sessions/admin). Fixed by explicitly setting `REST_FRAMEWORK["UNAUTHENTICATED_USER"] = None`; worth remembering if a future trimmed-down Django service hits the same failure.
+- Declaring `package_name` explicitly on the DRF serializer (rather than letting `ModelSerializer` auto-generate it from the model field) means DRF's automatic `UniqueValidator` is not attached — duplicate detection relies entirely on the DB-level `IntegrityError` catch instead. This was actually the desired outcome here (a clean 409 matching FastAPI exactly, rather than DRF's usual 400), but it's a subtle DRF behavior worth being aware of if the serializer is refactored later.
+- Still unresolved from Day 2: 9 of the 16 seeded apps use placeholder package names (`com.placeholder.*`) and need real Google Play ids looked up before Day 4's scraping work starts.
+<!-- The user will add their own conceptual questions here -->
+
+### Plan for tomorrow
+- Build a shared `MessageBroker` abstraction in `libs/message_broker/` — a common interface (e.g. `publish`/`subscribe` or `produce`/`consume`) with two concrete implementations, one backed by Redis Streams and one backed by Kafka, so downstream services (the scraper, storage consumer, network analyzer) can be written against the abstraction and swap brokers via configuration.
+- Start the Playstore scraper service (`services/playstore-scraper`), first half: general app stats only (name, rating, install count, etc. — not yet the network-traffic-driven work) for the apps currently in the `apps` table, published onto the broker abstraction built the same day.
+- Before scraping begins in earnest, resolve the remaining 9 placeholder package names flagged since Day 2, since the scraper needs real Google Play ids to look up.
