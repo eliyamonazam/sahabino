@@ -26,7 +26,4 @@ EOF
 
 chmod +x "$HOOKS_DIR/commit-msg"
 
-# Remove a pre-commit hook from a previous version of this script, if present.
-rm -f "$HOOKS_DIR/pre-commit"
-
 echo "Git hooks installed: commit-msg"

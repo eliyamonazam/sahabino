@@ -17,6 +17,7 @@ RAW_PLAY_STORE_RESPONSE = {
     "contentRating": "Everyone",
     "version": "2.24.1.1",
     "updated": 1732000000,
+    "adSupported": False,
     "some_field_we_dont_care_about": "ignored",
 }
 
@@ -48,6 +49,7 @@ def test_build_stats_payload_shapes_and_renames_fields():
     assert payload["min_installs"] == 10_000_000_000
     assert payload["real_installs"] == 10_500_000_000
     assert payload["store_last_updated"] == 1732000000
+    assert payload["ad_supported"] is False
     assert "some_field_we_dont_care_about" not in payload
     assert "scraped_at" in payload
 
@@ -58,3 +60,4 @@ def test_build_stats_payload_tolerates_missing_play_details_fields():
     assert payload["package_name"] == "com.whatsapp"
     assert payload["title"] is None
     assert payload["score"] is None
+    assert payload["ad_supported"] is None

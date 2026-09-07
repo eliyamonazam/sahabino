@@ -1,0 +1,19 @@
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+exclude = [
+    ".venv",
+    "migrations",
+    "**/alembic/versions",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["message_broker"]

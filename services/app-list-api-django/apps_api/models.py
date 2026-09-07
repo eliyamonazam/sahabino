@@ -28,7 +28,9 @@ class App(models.Model):
         max_length=50,
         help_text="App category. One of: messenger, operator, video, word_game, chat_dating, social.",
     )
-    is_active = models.BooleanField(default=True, help_text="Whether the app is actively tracked (soft-delete flag).")
+    is_active = models.BooleanField(
+        default=True, help_text="Whether the app is actively tracked (soft-delete flag)."
+    )
     created_at = models.DateTimeField(auto_now_add=True, help_text="Timestamp when this row was created.")
     updated_at = models.DateTimeField(auto_now=True, help_text="Timestamp when this row was last updated.")
 
