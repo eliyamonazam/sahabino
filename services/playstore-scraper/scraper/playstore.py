@@ -40,4 +40,5 @@ def build_stats_payload(tracked_app: dict[str, Any], play_details: dict[str, Any
         "content_rating": play_details.get("contentRating"),
         "version": play_details.get("version"),
         "store_last_updated": play_details.get("updated"),
+        "ad_supported": play_details.get("adSupported"),
     }

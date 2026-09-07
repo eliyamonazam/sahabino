@@ -2,8 +2,8 @@ import asyncio
 import logging
 
 import httpx
-from message_broker import get_broker
 
+from message_broker import get_broker
 from scraper.app_list_client import AppListClient
 from scraper.config import Config, get_config
 from scraper.playstore import build_stats_payload, scrape_app_details
@@ -19,7 +19,9 @@ async def run_once(app_list_client: AppListClient, broker, config: Config) -> No
     for tracked_app in tracked_apps:
         package_name = tracked_app["package_name"]
         try:
-            play_details = await scrape_app_details(package_name, config.playstore_lang, config.playstore_country)
+            play_details = await scrape_app_details(
+                package_name, config.playstore_lang, config.playstore_country
+            )
         except Exception:
             logger.exception("Failed to scrape %s, skipping", package_name)
             continue

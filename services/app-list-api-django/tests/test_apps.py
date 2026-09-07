@@ -59,7 +59,9 @@ def test_list_apps(client):
 
 @pytest.mark.django_db
 def test_list_apps_active_only_filters_inactive(client):
-    create = client.post("/apps/", {"package_name": "a.three", "name": "Three", "category": "social"}, format="json")
+    create = client.post(
+        "/apps/", {"package_name": "a.three", "name": "Three", "category": "social"}, format="json"
+    )
     app_id = create.json()["id"]
     client.delete(f"/apps/{app_id}/")
 
@@ -72,7 +74,9 @@ def test_list_apps_active_only_filters_inactive(client):
 
 @pytest.mark.django_db
 def test_patch_app_partial_update(client):
-    create = client.post("/apps/", {"package_name": "a.four", "name": "Four", "category": "video"}, format="json")
+    create = client.post(
+        "/apps/", {"package_name": "a.four", "name": "Four", "category": "video"}, format="json"
+    )
     app_id = create.json()["id"]
 
     resp = client.patch(f"/apps/{app_id}/", {"category": "word_game"}, format="json")
@@ -84,7 +88,9 @@ def test_patch_app_partial_update(client):
 
 @pytest.mark.django_db
 def test_patch_app_package_name(client):
-    create = client.post("/apps/", {"package_name": "a.old", "name": "Renamed App", "category": "video"}, format="json")
+    create = client.post(
+        "/apps/", {"package_name": "a.old", "name": "Renamed App", "category": "video"}, format="json"
+    )
     app_id = create.json()["id"]
 
     resp = client.patch(f"/apps/{app_id}/", {"package_name": "a.new"}, format="json")
@@ -97,7 +103,9 @@ def test_patch_app_package_name(client):
 @pytest.mark.django_db
 def test_patch_app_package_name_duplicate_fails_cleanly(client):
     client.post("/apps/", {"package_name": "a.taken", "name": "First", "category": "video"}, format="json")
-    create = client.post("/apps/", {"package_name": "a.available", "name": "Second", "category": "video"}, format="json")
+    create = client.post(
+        "/apps/", {"package_name": "a.available", "name": "Second", "category": "video"}, format="json"
+    )
     app_id = create.json()["id"]
 
     resp = client.patch(f"/apps/{app_id}/", {"package_name": "a.taken"}, format="json")
@@ -113,7 +121,9 @@ def test_patch_nonexistent_app_returns_404(client):
 
 @pytest.mark.django_db
 def test_delete_app_soft_deletes(client):
-    create = client.post("/apps/", {"package_name": "a.five", "name": "Five", "category": "chat_dating"}, format="json")
+    create = client.post(
+        "/apps/", {"package_name": "a.five", "name": "Five", "category": "chat_dating"}, format="json"
+    )
     app_id = create.json()["id"]
 
     resp = client.delete(f"/apps/{app_id}/")

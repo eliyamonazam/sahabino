@@ -51,7 +51,9 @@ async def test_list_apps(client):
 
 @pytest.mark.asyncio
 async def test_list_apps_active_only_filters_inactive(client):
-    create = await client.post("/apps", json={"package_name": "a.three", "name": "Three", "category": "social"})
+    create = await client.post(
+        "/apps", json={"package_name": "a.three", "name": "Three", "category": "social"}
+    )
     app_id = create.json()["id"]
     await client.delete(f"/apps/{app_id}")
 
@@ -64,9 +66,7 @@ async def test_list_apps_active_only_filters_inactive(client):
 
 @pytest.mark.asyncio
 async def test_patch_app_partial_update(client):
-    create = await client.post(
-        "/apps", json={"package_name": "a.four", "name": "Four", "category": "video"}
-    )
+    create = await client.post("/apps", json={"package_name": "a.four", "name": "Four", "category": "video"})
     app_id = create.json()["id"]
 
     resp = await client.patch(f"/apps/{app_id}", json={"category": "word_game"})
@@ -93,7 +93,9 @@ async def test_patch_app_package_name(client):
 @pytest.mark.asyncio
 async def test_patch_app_package_name_duplicate_fails_cleanly(client):
     await client.post("/apps", json={"package_name": "a.taken", "name": "First", "category": "video"})
-    create = await client.post("/apps", json={"package_name": "a.available", "name": "Second", "category": "video"})
+    create = await client.post(
+        "/apps", json={"package_name": "a.available", "name": "Second", "category": "video"}
+    )
     app_id = create.json()["id"]
 
     resp = await client.patch(f"/apps/{app_id}", json={"package_name": "a.taken"})

@@ -21,10 +21,7 @@ class AppCreate(BaseModel):
     )
     category: AppCategory = Field(
         ...,
-        description=(
-            "App category. One of: messenger, operator, video, word_game, "
-            "chat_dating, social."
-        ),
+        description=("App category. One of: messenger, operator, video, word_game, chat_dating, social."),
         examples=["messenger"],
     )
 
