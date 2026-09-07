@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 # Seeds the initial list of tracked apps via the running app-list-api-fastapi service.
-#
-# Package names marked with a placeholder comment are NOT real Google Play
-# package ids — they need to be looked up and corrected before Day 4 (real
-# scraping) starts. See the README / DAILY_LOG for the full placeholder list.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,20 +41,20 @@ create_app() {
 create_app "org.telegram.messenger" "Telegram" "messenger"
 create_app "com.whatsapp" "Whatsapp" "messenger"
 
-# operator (placeholder package names — see README/DAILY_LOG)
-create_app "com.placeholder.myirancell" "Myirancell" "operator"
-create_app "com.placeholder.mymci" "Mymci" "operator"
-create_app "com.placeholder.myrightel" "MyRightel" "operator"
+# operator
+create_app "com.myirancell" "Myirancell" "operator"
+create_app "ir.mci.ecareapp" "Mymci" "operator"
+create_app "ir.rightel.myrightel" "MyRightel" "operator"
 
-# video (placeholder package names — see README/DAILY_LOG)
-create_app "com.placeholder.namava" "Namava" "video"
-create_app "com.placeholder.lenz" "Lenz" "video"
-create_app "com.placeholder.tamashakhonehtv" "Tamashakhonehtv" "video"
+# video
+create_app "com.shatelland.namava.mobile" "Namava" "video"
+create_app "com.likotv" "Lenz" "video"
+create_app "ir.tamashakhonehtv" "Tamashakhonehtv" "video"
 
-# word_game (placeholder package names — see README/DAILY_LOG)
-create_app "com.placeholder.fandogh" "Fandogh" "word_game"
-create_app "com.placeholder.amirza" "Amirza" "word_game"
-create_app "com.placeholder.samavar" "Samavar" "word_game"
+# word_game
+create_app "com.plus9.fandogh" "Fandogh" "word_game"
+create_app "com.BrainLadder.AmirzaGP" "Amirza" "word_game"
+create_app "com.plus9.samavar" "Samavar" "word_game"
 
 # chat_dating
 create_app "ir.android.baham" "Baham" "chat_dating"

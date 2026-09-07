@@ -1,0 +1,4 @@
+httpx==0.28.1
+google-play-scraper==1.2.7
+python-dotenv==1.0.1
+-e ../../libs/message_broker
