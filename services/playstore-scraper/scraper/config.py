@@ -19,6 +19,7 @@ class Config:
     def __init__(self) -> None:
         self.app_list_api_url = os.getenv("APP_LIST_API_URL", "http://app-list-api-fastapi:8000")
         self.playstore_topic = os.getenv("PLAYSTORE_TOPIC", "playstore-app-stats")
+        self.playstore_reviews_topic = os.getenv("PLAYSTORE_REVIEWS_TOPIC", "playstore-app-reviews")
         self.scrape_interval_seconds = int(os.getenv("SCRAPE_INTERVAL_SECONDS", "3600"))
         self.playstore_lang = os.getenv("PLAYSTORE_LANG", "fa")
         self.playstore_country = os.getenv("PLAYSTORE_COUNTRY", "ir")
