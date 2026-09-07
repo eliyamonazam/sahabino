@@ -110,6 +110,27 @@ services:
       postgres:
         condition: service_healthy
 
+  playstore-scraper:
+    build:
+      context: .
+      dockerfile: services/playstore-scraper/Dockerfile
+    container_name: sahabino-playstore-scraper
+    restart: unless-stopped
+    environment:
+      APP_LIST_API_URL: http://app-list-api-fastapi:8000
+      MESSAGE_BROKER_TYPE: ${MESSAGE_BROKER_TYPE:-redis}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SCRAPE_INTERVAL_SECONDS: ${SCRAPE_INTERVAL_SECONDS:-3600}
+    depends_on:
+      app-list-api-fastapi:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   kafka-data:
