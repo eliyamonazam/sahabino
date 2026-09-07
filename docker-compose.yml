@@ -37,13 +37,21 @@ services:
     container_name: sahabino-kafka
     restart: unless-stopped
     ports:
-      - "${KAFKA_PORT:-9092}:9092"
+      - "${KAFKA_PORT:-9092}:29092"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${KAFKA_PORT:-9092}
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      # Two listeners: PLAINTEXT for container-to-container traffic (advertised
+      # as the `kafka` service name, resolvable on the compose network) and
+      # PLAINTEXT_HOST for host-side access (advertised as localhost, mapped
+      # to the host port). Without this split, Kafka's post-bootstrap metadata
+      # always points every client at the same advertised address, so whichever
+      # one isn't advertised can complete the initial connection but never
+      # produce/consume -- this broke playstore-scraper/storage-consumer's
+      # container-to-container Kafka traffic until the split was added.
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:${KAFKA_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -126,6 +134,35 @@ services:
     depends_on:
       app-list-api-fastapi:
         condition: service_started
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  storage-consumer:
+    build:
+      context: .
+      dockerfile: services/storage-consumer/Dockerfile
+    container_name: sahabino-storage-consumer
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      # Always 5432 here regardless of the host-side POSTGRES_PORT in .env:
+      # this is container-to-container traffic on the internal docker network,
+      # which always uses the port postgres listens on inside its own container.
+      POSTGRES_PORT: 5432
+      MESSAGE_BROKER_TYPE: ${MESSAGE_BROKER_TYPE:-redis}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    # No dependency on app-list-api-fastapi: this service only reads from
+    # the broker, never calls the API directly.
+    depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
