@@ -17,18 +17,6 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7
-    container_name: sahabino-redis
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   # Kafka runs in KRaft mode (no separate Zookeeper container needed).
   # KRaft is the modern, officially recommended mode for new Kafka deployments
   # and simplifies local/dev setups by removing a service from the stack.
@@ -126,16 +114,12 @@ services:
     restart: unless-stopped
     environment:
       APP_LIST_API_URL: http://app-list-api-fastapi:8000
-      MESSAGE_BROKER_TYPE: ${MESSAGE_BROKER_TYPE:-redis}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      MESSAGE_BROKER_TYPE: ${MESSAGE_BROKER_TYPE:-kafka}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SCRAPE_INTERVAL_SECONDS: ${SCRAPE_INTERVAL_SECONDS:-3600}
     depends_on:
       app-list-api-fastapi:
         condition: service_started
-      redis:
-        condition: service_healthy
       kafka:
         condition: service_healthy
 
@@ -154,16 +138,12 @@ services:
       # this is container-to-container traffic on the internal docker network,
       # which always uses the port postgres listens on inside its own container.
       POSTGRES_PORT: 5432
-      MESSAGE_BROKER_TYPE: ${MESSAGE_BROKER_TYPE:-redis}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      MESSAGE_BROKER_TYPE: ${MESSAGE_BROKER_TYPE:-kafka}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     # No dependency on app-list-api-fastapi: this service only reads from
     # the broker, never calls the API directly.
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       kafka:
         condition: service_healthy

@@ -4,7 +4,8 @@ Consumes both topics `playstore-scraper` publishes to (`playstore-app-stats`
 and `playstore-app-reviews`) via `libs/message_broker`'s `get_broker()`, and
 persists them into Postgres. Backend selection (Redis Streams vs Kafka)
 follows the same `MESSAGE_BROKER_TYPE` environment variable convention as
-the scraper, so this service works against either without code changes.
+the scraper, so this service works against either without code changes —
+Kafka is the broker actually used in the deployed stack.
 
 Runs two concurrent consume loops (`asyncio.gather`, one per topic), each
 under its own consumer group (`storage-consumer-stats` /
