@@ -37,7 +37,7 @@ same app's reviews from being attempted (or vice versa).
 | Variable | Default | Meaning |
 |---|---|---|
 | `APP_LIST_API_URL` | `http://app-list-api-fastapi:8000` | Base URL of the app-list-api-fastapi service |
-| `MESSAGE_BROKER_TYPE` | `redis` | `redis` or `kafka`, see `libs/message_broker` |
+| `MESSAGE_BROKER_TYPE` | `kafka` | `redis` or `kafka`, see `libs/message_broker`. Kafka is the broker used in the deployed stack. |
 | `SCRAPE_INTERVAL_SECONDS` | `3600` | Delay between scrape passes |
 | `PLAYSTORE_LANG` | `fa` | Locale passed to google-play-scraper |
 | `PLAYSTORE_COUNTRY` | `ir` | Storefront country passed to google-play-scraper |
