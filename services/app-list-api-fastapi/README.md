@@ -8,6 +8,7 @@ FastAPI implementation of the app-list CRUD API (shares a database with the Djan
 - `GET /apps?active_only=false` — list apps, optionally filtered to active ones.
 - `PATCH /apps/{id}` — partially update `package_name`, `name`, and/or `category`. 404 if not found; 409 if the new `package_name` is already used by another row.
 - `DELETE /apps/{id}` — soft delete: sets `is_active = false`. 404 if not found.
+- `GET /health` — 200 if the database is reachable (runs `SELECT 1`), 503 if not. Used by the Docker healthcheck.
 
 Interactive docs (Swagger UI) are served at `/docs` once the service is running.
 
