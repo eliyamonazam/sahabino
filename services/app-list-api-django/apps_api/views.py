@@ -1,9 +1,22 @@
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from rest_framework import mixins, status, viewsets
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import App
 from .serializers import AppSerializer
+
+
+class HealthView(APIView):
+    """Reports 200 only if the database is actually reachable, not just that the process is running."""
+
+    def get(self, request):
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+        except Exception:
+            return Response({"status": "unhealthy"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response({"status": "ok"})
 
 
 def _truthy(value: str) -> bool:

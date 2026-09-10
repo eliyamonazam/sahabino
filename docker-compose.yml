@@ -96,6 +96,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # No curl in this python:3.12-slim image; urlopen raises on a non-2xx
+      # response (the /health endpoint returns 503 when the DB check fails),
+      # so a non-zero exit here means "not healthy" either way.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   app-list-api-django:
     build:
@@ -116,6 +125,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # No curl in this python:3.12-slim image; urlopen raises on a non-2xx
+      # response (the /health/ endpoint returns 503 when the DB check fails),
+      # so a non-zero exit here means "not healthy" either way.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   playstore-scraper:
     build:
@@ -130,7 +148,7 @@ services:
       SCRAPE_INTERVAL_SECONDS: ${SCRAPE_INTERVAL_SECONDS:-3600}
     depends_on:
       app-list-api-fastapi:
-        condition: service_started
+        condition: service_healthy
       kafka:
         condition: service_healthy
 
