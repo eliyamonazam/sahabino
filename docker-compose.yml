@@ -148,6 +148,34 @@ services:
       kafka:
         condition: service_healthy
 
+  # Batch tool, not a daemon: it processes whatever's in PCAP_DIR once and
+  # exits, so it's meant to be run with `docker compose run --rm
+  # network-analyzer`, not brought up with the rest of the stack via `up -d`
+  # (no restart policy is set, so if it is included in `up -d` it just runs
+  # once and exits rather than restart-looping).
+  network-analyzer:
+    build:
+      context: ./services/network-analyzer
+    container_name: sahabino-network-analyzer
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      # Always 5432 here regardless of the host-side POSTGRES_PORT in .env:
+      # this is container-to-container traffic on the internal docker network,
+      # which always uses the port postgres listens on inside its own container.
+      POSTGRES_PORT: 5432
+      APP_LIST_API_URL: http://app-list-api-fastapi:8000
+    volumes:
+      # Read-only: this service only ever reads already-captured pcap files.
+      - ./data/pcap-samples:/app/data/pcap-samples:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      app-list-api-fastapi:
+        condition: service_started
+
 volumes:
   postgres-data:
   kafka-data:
