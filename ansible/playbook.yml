@@ -1,0 +1,100 @@
+---
+# Deploys the Sahabino stack: installs Docker/Compose if missing, ensures
+# .env exists, installs the repo's local git hooks, and brings the stack up.
+# Safe to re-run: every task here is idempotent, including the final
+# `docker compose up -d --build`, which only recreates containers whose
+# effective config actually changed - re-running this against an
+# already-healthy stack is a no-op (see ansible/README.md for how this was
+# verified).
+- name: Deploy the Sahabino stack
+  hosts: sahabino
+  vars:
+    repo_root: "{{ playbook_dir }}/.."
+
+  tasks:
+    - name: Check whether Docker is installed
+      command: docker --version
+      register: docker_check
+      changed_when: false
+      failed_when: false
+
+    - name: Check whether the Docker Compose plugin is installed
+      command: docker compose version
+      register: compose_check
+      changed_when: false
+      failed_when: false
+
+    - name: Install Docker and the Compose plugin if either is missing
+      when: docker_check.rc != 0 or compose_check.rc != 0
+      become: true
+      block:
+        - name: Fail with a clear message on targets this playbook can't install Docker on
+          fail:
+            msg: >-
+              Docker and/or the Compose plugin are missing, and this playbook only
+              knows how to install them on Debian/Ubuntu targets (detected OS family:
+              {{ ansible_facts.os_family | default('unknown') }}). Install both
+              manually and re-run.
+          when: ansible_facts.os_family is not defined or ansible_facts.os_family != "Debian"
+
+        - name: Install prerequisite packages for Docker's apt repository
+          apt:
+            name: [ca-certificates, curl, gnupg]
+            state: present
+            update_cache: true
+
+        - name: Create the apt keyrings directory
+          file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: "0755"
+
+        - name: Add Docker's official GPG key
+          get_url:
+            url: "https://download.docker.com/linux/{{ ansible_facts.distribution | lower }}/gpg"
+            dest: /etc/apt/keyrings/docker.asc
+            mode: "0644"
+
+        - name: Add the Docker apt repository
+          apt_repository:
+            repo: >-
+              deb [arch={{ ansible_facts.architecture | default('amd64') }} signed-by=/etc/apt/keyrings/docker.asc]
+              https://download.docker.com/linux/{{ ansible_facts.distribution | lower }}
+              {{ ansible_facts.distribution_release }} stable
+            state: present
+            filename: docker
+
+        - name: Install Docker Engine, CLI, and the Compose plugin
+          apt:
+            name: [docker-ce, docker-ce-cli, containerd.io, docker-compose-plugin]
+            state: present
+            update_cache: true
+
+    - name: Ensure .env exists (copy from .env.example if missing)
+      copy:
+        src: "{{ repo_root }}/.env.example"
+        dest: "{{ repo_root }}/.env"
+        force: false
+        remote_src: true
+      register: env_file
+
+    - name: Report .env status
+      debug:
+        msg: >-
+          {{ 'Created .env from .env.example.' if env_file.changed
+             else '.env already exists, left untouched.' }}
+
+    - name: Install local git hooks
+      command: ./scripts/install-git-hooks.sh
+      args:
+        chdir: "{{ repo_root }}"
+
+    - name: Bring the stack up
+      command: docker compose up -d --build
+      args:
+        chdir: "{{ repo_root }}"
+      register: compose_up
+
+    - name: Show docker compose up output
+      debug:
+        var: compose_up.stderr_lines

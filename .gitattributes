@@ -1,0 +1,9 @@
+# Shell scripts and .env.example must always check out with LF line
+# endings, regardless of the checking-out machine's core.autocrlf setting.
+# A CRLF shebang line breaks execution entirely inside Linux containers
+# ("env: can't execute 'bash\r': No such file or directory") - found by
+# actually running scripts/install-git-hooks.sh from a Linux container
+# while validating ansible/playbook.yml, since this repo's git config has
+# core.autocrlf=true on at least one contributor's machine.
+*.sh text eol=lf
+.env.example text eol=lf
