@@ -1,3 +1,14 @@
+# Pinned explicitly rather than left to directory-name inference: Compose
+# defaults an unset project name to the checkout directory's basename, which
+# this repo happens to satisfy locally (`sahab-proj`) but can't rely on for
+# a real remote deployment - a checkout at e.g. /opt/sahabino or /home/deploy/app
+# would infer a different project name, and since every service below pins
+# an explicit container_name, a second project name trying to manage those
+# same container names collides outright rather than recognizing them as
+# already-managed (surfaced while validating ansible/playbook.yml against a
+# differently-named mount point).
+name: sahab-proj
+
 services:
   postgres:
     image: postgres:16

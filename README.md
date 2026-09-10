@@ -11,7 +11,7 @@ A system for collecting and analyzing Google Play Store app data and network tra
 
 ```bash
 ./scripts/setup.sh   # one-time setup: creates .env, installs git hooks
-./scripts/run.sh      # starts all infrastructure services
+./scripts/run.sh      # starts the full stack
 ```
 
 To stop everything:
