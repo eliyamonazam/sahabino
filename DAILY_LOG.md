@@ -153,3 +153,22 @@
 ### Plan for tomorrow
 - Day 10 is UI-focused, not code: build Metabase dashboards and analysis on top of the data collected since Day 4 (Play Store stats/reviews) and Day 8 (network metrics) - questions, charts, and cross-referencing app categories against their scraped/analyzed metrics, all within Metabase itself rather than in the codebase.
 - Fix the 9 stale placeholder `package_name` rows in the live database via targeted `PATCH` calls before relying on this environment's data for that analysis, since 9 of 16 apps currently can't produce meaningful Play Store stats/reviews at all.
+
+## Day 10 — 9/13/2026
+
+### Done
+- Connected Metabase to the project's Postgres database
+- Built the 4 charts required by the spec: overall score trend by category, review-based score trend (monthly), install count trend (log scale), chat app popularity vs. network stability
+- Built 2 additional analytical questions: ad-support vs. install count relationship, user engagement (reviews) by category
+- Combined all 6 charts into one dashboard and saved a screenshot to `docs/metabase-dashboard.png`
+
+### Learned
+- Changed the install-count trend chart's Y-axis from linear to logarithmic, because the differences in install counts between apps were huge (from millions to billions), and a linear scale made it impossible to examine all apps in one useful range at once; log scale fixed this.
+- The review-score trend chart was initially very cluttered with daily grouping, since reviews could be years old. Changing the grouping from daily to monthly reduced the number of data points and made the chart much more readable.
+- From the data, apps with ad support had, on average, higher install counts.
+
+### Blockers / questions to raise
+- (none)
+
+### Plan for tomorrow
+- Day 11: sentiment analysis on reviews (bonus) + final hardening (consistent logging, edge cases, being fully ready to explain every part of the project)
