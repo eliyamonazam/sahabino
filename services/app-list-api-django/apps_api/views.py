@@ -1,3 +1,5 @@
+import logging
+
 from django.db import IntegrityError, connection, transaction
 from rest_framework import mixins, status, viewsets
 from rest_framework.response import Response
@@ -5,6 +7,9 @@ from rest_framework.views import APIView
 
 from .models import App
 from .serializers import AppSerializer
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger("app-list-api-django")
 
 
 class HealthView(APIView):
@@ -40,7 +45,10 @@ class AppViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             qs = qs.filter(is_active=True)
         return qs
 
-    def _duplicate_package_name_response(self, request) -> Response:
+    def _duplicate_package_name_response(self, request, action: str) -> Response:
+        logger.warning(
+            "Rejected %s: package_name '%s' already exists", action, request.data.get("package_name")
+        )
         return Response(
             {"detail": f"An app with package_name '{request.data.get('package_name')}' already exists."},
             status=status.HTTP_409_CONFLICT,
@@ -53,7 +61,8 @@ class AppViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             with transaction.atomic():
                 serializer.save()
         except IntegrityError:
-            return self._duplicate_package_name_response(request)
+            return self._duplicate_package_name_response(request, "create")
+        logger.info("Created app id=%s name=%r", serializer.instance.id, serializer.instance.name)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, *args, **kwargs):
@@ -64,11 +73,13 @@ class AppViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             with transaction.atomic():
                 serializer.save()
         except IntegrityError:
-            return self._duplicate_package_name_response(request)
+            return self._duplicate_package_name_response(request, f"update for app id={instance.id}")
+        logger.info("Updated app id=%s name=%r", serializer.instance.id, serializer.instance.name)
         return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.is_active = False
         instance.save(update_fields=["is_active", "updated_at"])
+        logger.info("Deactivated app id=%s name=%r", instance.id, instance.name)
         return Response(self.get_serializer(instance).data)

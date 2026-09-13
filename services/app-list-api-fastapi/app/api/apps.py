@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -6,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.app import App
 from app.schemas.app import AppCreate, AppRead, AppUpdate
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger("app-list-api-fastapi")
 
 router = APIRouter(prefix="/apps", tags=["apps"])
 
@@ -30,11 +35,13 @@ async def create_app(payload: AppCreate, db: AsyncSession = Depends(get_db)) -> 
         await db.commit()
     except IntegrityError:
         await db.rollback()
+        logger.warning("Rejected create: package_name '%s' already exists", payload.package_name)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"An app with package_name '{payload.package_name}' already exists.",
         )
     await db.refresh(app)
+    logger.info("Created app id=%s name=%r", app.id, app.name)
     return app
 
 
@@ -70,11 +77,15 @@ async def update_app(app_id: int, payload: AppUpdate, db: AsyncSession = Depends
         await db.commit()
     except IntegrityError:
         await db.rollback()
+        logger.warning(
+            "Rejected update for app id=%s: package_name '%s' already exists", app_id, payload.package_name
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"An app with package_name '{payload.package_name}' already exists.",
         )
     await db.refresh(app)
+    logger.info("Updated app id=%s name=%r", app.id, app.name)
     return app
 
 
@@ -88,4 +99,5 @@ async def deactivate_app(app_id: int, db: AsyncSession = Depends(get_db)) -> App
     app.is_active = False
     await db.commit()
     await db.refresh(app)
+    logger.info("Deactivated app id=%s name=%r", app.id, app.name)
     return app

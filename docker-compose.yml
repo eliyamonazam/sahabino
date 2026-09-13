@@ -205,6 +205,28 @@ services:
       app-list-api-fastapi:
         condition: service_started
 
+  # Batch tool, not a daemon: same convention as network-analyzer above. It
+  # processes every `reviews` row with `sentiment IS NULL` once and exits, so
+  # it's meant to be run with `docker compose run --rm sentiment-analyzer`,
+  # not brought up with the rest of the stack via `up -d`.
+  sentiment-analyzer:
+    build:
+      context: ./services/sentiment-analyzer
+    container_name: sahabino-sentiment-analyzer
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      # Always 5432 here regardless of the host-side POSTGRES_PORT in .env:
+      # this is container-to-container traffic on the internal docker network,
+      # which always uses the port postgres listens on inside its own container.
+      POSTGRES_PORT: 5432
+      SENTIMENT_BATCH_SIZE: ${SENTIMENT_BATCH_SIZE:-500}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   kafka-data:
