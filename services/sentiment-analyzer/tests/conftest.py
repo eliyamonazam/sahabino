@@ -16,8 +16,7 @@ TEST_DATABASE_URL = build_database_url(
 # copied by hand from
 # services/storage-consumer/alembic/versions/72bc1a63a7b8_create_app_stats_snapshots_and_reviews_.py
 # (the `reviews` table only) and must be kept in sync manually if that
-# migration ever changes. Same pattern as app-list-api-django's conftest.py
-# for the `apps` table it likewise doesn't own.
+# migration ever changes.
 CREATE_REVIEWS_TABLE_SQL = """
 CREATE TABLE reviews (
     review_id VARCHAR(255) PRIMARY KEY,

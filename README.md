@@ -18,7 +18,6 @@ dashboard built on top of the collected data.
 | Service | Description |
 |---|---|
 | `app-list-api-fastapi` | FastAPI CRUD API for the tracked-apps list; owns the `apps` table's schema. Always-on. |
-| `app-list-api-django` | A second, independent Django + DRF CRUD implementation against the same `apps` table. Always-on. |
 | `playstore-scraper` | Scrapes each tracked app's Play Store stats and reviews, publishes them to Kafka. Always-on. |
 | `storage-consumer` | Consumes scraped stats/reviews from Kafka and persists them into Postgres. Always-on. |
 | `network-analyzer` | Extracts network-quality metrics from manually captured pcap files into Postgres. Batch tool. |
@@ -67,11 +66,7 @@ docker compose run --rm sentiment-analyzer
 
 ## Bonus features implemented
 
-- **Django** — a second, fully independent CRUD implementation (`app-list-api-django`)
-  against the same `apps` table as the FastAPI service, verified to be interchangeable
-  with it from a client's perspective.
-- **Swagger** — interactive API docs on both API services: `/docs` on
-  `app-list-api-fastapi`, `/api/schema/swagger-ui/` on `app-list-api-django`.
+- **Swagger** — interactive API docs on `app-list-api-fastapi`: `/docs`.
 - **Kafka** — the deployed stack's message broker for the Play Store pipeline, behind
   a shared `MessageBroker` abstraction that also has a working (tested, but currently
   unused in the deployed stack) Redis Streams implementation.
