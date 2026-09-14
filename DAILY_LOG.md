@@ -12,7 +12,12 @@
 - Started the full stack with `docker compose up -d` and confirmed all four services reach a healthy/running state.
 
 ### Learned
-<!-- TODO: do NOT fill this in. The user must fill this in themselves, in their own words, after reviewing what was actually built. -->
+Learned that a Docker healthcheck actually calls a real readiness probe inside the
+container repeatedly (not just checking whether the process started), and that
+`depends_on: condition: service_healthy` uses that probe to gate when a *dependent*
+container is allowed to start. There are two separate dependency chains here, not one:
+database -> API (the API must wait for Postgres to be healthy) and API -> scraper (the
+scraper must wait for the API itself to be healthy, not the database directly).
 
 ### Blockers / questions to raise
 - Kafka in KRaft mode took roughly 10-20 seconds to report healthy on first boot; this is expected and the healthcheck has a 30s start period to account for it.
@@ -36,7 +41,16 @@
 - Same-day correction: the user confirmed the real Google Play package ids for two apps — Baham (`ir.android.baham`) and Pinno (`app.pinno`). Corrected both rows via the now-extended `PATCH /apps/{id}` (which can now also update `package_name`, with the same 409-on-duplicate handling as create) and updated `scripts/seed_apps.sh` so a future fresh seed inserts the correct values directly.
 
 ### Learned
-<!-- TODO: do NOT fill this in. The user must fill this in themselves, in their own words, after reviewing what was actually built. -->
+Learned that a route decorator like `@router.post("/apps")` doesn't call the function
+immediately -- it registers the function in a lookup table (similar to a dict keyed by
+method+path), and the function only runs later when a matching request actually arrives.
+Also learned the difference between I/O-bound work (network/database calls, where
+`async`/`await` genuinely helps because the CPU is free while waiting) and CPU-bound work
+(where `async` alone does nothing, since Python's GIL means threads don't run Python code
+in parallel -- real CPU-bound speedup needs separate processes, not threads or async).
+Also corrected my own initial understanding of the ORM: it's not just about preventing SQL
+injection -- it's mainly about not having to hand-build SQL strings at all, which also
+gives you working with plain Python objects instead of raw rows.
 
 ### Blockers / questions to raise
 - This machine has a native Windows PostgreSQL service also bound to host port 5432 (alongside Docker Desktop's port mapping for the `postgres` container), so tools run directly on the host (a local venv's `alembic`/`pytest`) can silently hit the wrong server on `localhost:5432` and fail auth. Worked around it by running migrations and tests inside a container attached to the compose network (via `docker compose run`) instead of from the host. Worth deciding whether to stop/reconfigure the native service or remap `POSTGRES_PORT` if host-side tooling needs to work directly against `localhost` going forward.
@@ -63,7 +77,14 @@
 - Ran the manual cross-service consistency check: created an app via FastAPI's `POST /apps` and confirmed it appeared via Django's `GET /apps/`, then created one via Django's `POST /apps/` and confirmed it appeared via FastAPI's `GET /apps`. Both directions worked immediately (both test rows removed afterward) — confirms the two services are genuinely reading and writing the same table.
 
 ### Learned
-<!-- TODO: do NOT fill this in. The user must fill this in themselves, in their own words, after reviewing what was actually built. -->
+Learned that "owning the schema" doesn't mean controlling who can read/write/delete data --
+both the FastAPI and Django services can fully create, read, update, and deactivate rows.
+It specifically means controlling who can change the table's structure (add/remove/alter
+columns), which is why Django's model is `managed=False`. Also learned why letting both
+services manage migrations would be a problem even without any real concurrency: each
+service's own migration history is a separate "notebook" that can silently fall out of sync
+with the real table structure, independent of timing -- it's not a race condition, it's a
+single-source-of-truth problem.
 
 ### Blockers / questions to raise
 - DRF's default `UNAUTHENTICATED_USER` setting (`AnonymousUser`) lazily imports `django.contrib.auth.models` on every request, which fails once `django.contrib.auth` is removed from `INSTALLED_APPS` (as it is here, since this is an unauthenticated internal service with no sessions/admin). Fixed by explicitly setting `REST_FRAMEWORK["UNAUTHENTICATED_USER"] = None`; worth remembering if a future trimmed-down Django service hits the same failure.
@@ -88,7 +109,17 @@
 - Brought up the full stack fresh (`docker compose up -d --build`), re-ran `scripts/seed_apps.sh` with the corrected package names (all 16 apps created cleanly against both API services), and verified the scraper end-to-end: 15 of 16 active apps scraped and published successfully on the first real pass, confirmed by reading the messages back directly from the `playstore-app-stats` Redis stream (`XLEN`/`XRANGE`) — full realistic payloads (title, score, ratings, installs, genre, etc., in Persian where the store returns it) landed correctly.
 
 ### Learned
-<!-- TODO: do NOT fill this in. The user must fill this in themselves, in their own words, after reviewing what was actually built. -->
+Learned the real reason for the Kafka message broker: it's not really about "managing
+messages," it's about decoupling the scraper from the database in time. If Postgres is
+briefly unavailable (a restart, a network blip) and the scraper writes to it directly, the
+already-fetched data (which cost a real Play Store API call) would either be lost or force
+the scraper to build its own retry logic. With Kafka in between, the scraper just writes to
+the queue (which is independent of Postgres's health) and moves on; the consumer picks the
+message up whenever the database is ready again, without losing anything.
+Also learned and correctly restated the full pipeline: the app-list API only manages the
+list of tracked apps; the scraper asks it for that list over HTTP, scrapes Play Store, and
+publishes to Kafka; Kafka is purely a mailbox that never touches the database; the
+storage-consumer is the only thing that reads from Kafka and writes to Postgres.
 
 ### Blockers / questions to raise
 - `ir.rightel.myrightel` (MyRightel) 404s on every scrape attempt — verified directly against the Play Store listing (not a scraper bug or a wrong package id): the app was reportedly removed from Google Play in mid-2024 and is no longer listed there at all. The scraper's per-app skip-and-log handling means this doesn't block the rest of the pass, but the app currently has no Play Store stats to collect; worth deciding whether to mark it inactive, find an alternative source, or just accept the gap.
@@ -100,6 +131,29 @@
 - Build `services/storage-consumer`: consume from the `playstore-app-stats` topic via the broker abstraction and persist scraped stats into a new table (schema TBD — likely one row per scrape per app, not an update-in-place, so history is preserved for later analysis).
 - Decide how to handle `ir.rightel.myrightel` being delisted (mark inactive vs. accept the gap) before it causes confusing "missing data" questions downstream.
 - Consider adding Docker healthchecks to `app-list-api-fastapi`/`app-list-api-django` so dependent services' `depends_on: condition: service_healthy` can be trusted the way it already is for `postgres`/`redis`/`kafka`.
+
+## Day 5 — 2026-09-07
+
+### Done
+- Added reviews scraping to the Play Store scraper: fetches up to the latest 1000 reviews per app (sorted newest-first, paginated) using the same blocking-library-via-`asyncio.to_thread` pattern as the stats scraper.
+- Added exponential backoff (starting at 2s, doubling, capped) for transient scrape failures, with per-app skip-and-log on final failure so one app's failure doesn't stop the whole pass.
+- Published reviews to a new `playstore-app-reviews` Kafka topic, separate from the stats topic.
+- Refactored `run_once` into two symmetric helpers (`_scrape_and_publish_stats`, `_scrape_and_publish_reviews`) after finding the two code paths had drifted into inconsistent shapes.
+- 5 new tests covering pagination limits, payload shaping, and backoff-then-skip behavior (with sleep mocked so tests run fast).
+
+### Learned
+Learned why the retry delay for a rate-limited API should grow exponentially instead of
+staying constant. The point isn't just "wait and try again" -- it's to avoid looking like
+abusive/bot-like traffic to the remote server. A constant short delay retried immediately
+looks like aggressive polling and can trigger even stricter rate limiting or a block;
+doubling the wait time after each failure both reduces that appearance and gives the
+server progressively more time to recover if the problem is more than momentary.
+
+### Blockers / questions to raise
+- (none)
+
+### Plan for tomorrow
+- Day 6: build `storage-consumer`, which reads from both Kafka topics and writes to Postgres; first full end-to-end run of the pipeline.
 
 ## Day 6 — 2026-09-07
 
@@ -113,7 +167,15 @@
 - Found and fixed a genuine Kafka misconfiguration, surfaced because this was the first time two actual services (not host-side test code) exchanged Kafka traffic over the compose network: `docker-compose.yml`'s `kafka` service advertised a single listener as `localhost:9092`, which works for host-side clients but breaks container-to-container traffic (a container's initial bootstrap to `kafka:9092` succeeds, but Kafka's own metadata then tells it to reconnect to `localhost:9092`, which resolves to itself, not the `kafka` container). Fixed by splitting into two listeners: `PLAINTEXT` for container-to-container traffic (advertised as `kafka:9092`) and `PLAINTEXT_HOST` for host-side traffic (advertised as `localhost`, on the existing `KAFKA_PORT`).
 
 ### Learned
-<!-- TODO: do NOT fill this in. The user must fill this in themselves, in their own words, after reviewing what was actually built. -->
+Learned why `app_stats_snapshots` and `reviews` use opposite persistence strategies.
+Stats are append-only on purpose: the goal is a time-series for trend charts, so every
+hourly snapshot is a valid, distinct data point even if the underlying numbers (score,
+installs) haven't changed since the last one -- there's no such thing as a "duplicate" stat
+row worth avoiding. Reviews are the opposite: because each scrape re-fetches the latest
+~1000 reviews, most of them are the *same* reviews seen before, not new ones. Since each
+review has a natural stable identity (`review_id`), upserting on that id means seeing the
+same review again just updates it in place instead of creating a duplicate row for
+something that isn't actually new.
 
 ### Blockers / questions to raise
 - A handful of scraped reviews contain literal NUL bytes (`0x00`) inside their `content` field on real Play Store data (observed in Persian-language reviews) — Postgres text/varchar columns can never store `0x00`, so these are permanently unwritable, not a transient failure. The consumer's current behavior (log, skip, leave unacked for redelivery) is correct per spec, but a message like this fails and gets redelivered forever rather than eventually succeeding; worth deciding whether a dead-letter mechanism or content sanitization is needed as the review volume grows.
@@ -122,6 +184,54 @@
 
 ### Plan for tomorrow
 - Day 7 is a non-coding day per the roadmap: learn Wireshark fundamentals and capture pcap files for Baham and Pinno, laying the groundwork for the network-traffic-analysis work planned after the scraping/storage pipeline.
+
+## Day 7 — 2026-09-09
+
+### Done
+- Learned TCP fundamentals needed for the project's 7 network-quality metrics: the three-way handshake, retransmissions, zero-window events, TCP resets, and byte/overhead accounting.
+- Installed PCAPdroid and Wireshark; captured 8 real pcap files -- Baham and Pinno, send and receive scenarios, 2 repetitions each.
+- Manually extracted all 7 metrics for each file using Wireshark display filters (`tcp.analysis.retransmission`, `tcp.analysis.zero_window`, `tcp.flags.reset==1`, `tcp.analysis.ack_rtt`) and documented the results in `docs/network-metrics-manual.md`, to be used as the validation baseline for the automated tool built the next day.
+
+### Learned
+Learned the practical difference between a device-level capture (what PCAPdroid does, via
+a local VPN service, capturing at the IP layer with no Ethernet framing) and a true
+network-level capture. This directly affects metrics like Overhead Ratio, since Ethernet
+framing overhead simply isn't present in a device-level capture. Also got hands-on with
+reading Wireshark display filters directly instead of only reading about what they mean --
+including independently reproducing a known-zero result (no TCP resets in a receive-
+scenario file) and matching it against the automated pipeline built the next day.
+
+### Blockers / questions to raise
+- (none -- this was a non-coding, hands-on learning and data-collection day)
+
+### Plan for tomorrow
+- Day 8: build `network-analyzer`, which computes the same 7 metrics automatically from the captured pcap files, validated against today's manual table.
+
+## Day 8 — 2026-09-09
+
+### Done
+- Built `network-analyzer` as a batch CLI tool (`docker compose run --rm`, not an always-on service), since its input is manually captured files, not a live stream.
+- Implemented all 7 metrics via `pyshark`/`tshark`; parses `{app}_{scenario}_{NN}.pcap` filenames, looks up the real `app_id` via `app-list-api-fastapi`, and dedups by `source_file` so re-running is safe.
+- Added its own Alembic history owning a new `network_metrics` table (no FK to `apps`, same logical-reference pattern as `storage-consumer`).
+- 22 tests, including a synthetic multi-packet pcap fixture for deterministic unit tests.
+- Found and fixed a real bug during validation: handshake RTT for one file was off by ~9% against the Day 7 manual table. Ruled out a methodology difference (per-packet vs. per-connection averaging made no difference) and traced it to a tshark version mismatch between environments -- different versions disagree on which packets they can compute a valid RTT for. Fixed by pinning the exact tshark version in the Dockerfile, which required switching the base image to `ubuntu:24.04` since Debian's own repos don't carry that version. After the fix, all 8 files matched the manual table almost exactly.
+
+### Learned
+Learned the difference between a batch tool and an always-on service: `network-analyzer`
+doesn't stay running because it doesn't receive a live stream -- it runs once over
+whatever files are in a folder, writes the results, and exits, which is why it's launched
+with `docker compose run --rm` instead of `up -d`, and has no `restart` policy.
+Also correctly retold the RTT bug investigation end-to-end: two environments gave
+different handshake RTT numbers; the first hypothesis (wrong averaging method) was tested
+and ruled out because changing it didn't change the result; the real cause turned out to
+be a tshark version difference between environments, where different versions of the tool
+disagree on which packets they can compute a valid RTT for.
+
+### Blockers / questions to raise
+- (resolved during the day -- see the tshark version bug above)
+
+### Plan for tomorrow
+- Day 9: Ansible playbook for deployment automation, non-destructive review of the bash scripts against the now-larger service count.
 
 ## Day 9 — 2026-09-10
 
@@ -142,7 +252,13 @@
 - Verified against the live stack: rebuilt and recreated only `app-list-api-fastapi`/`app-list-api-django` (`docker compose up -d --build app-list-api-fastapi app-list-api-django`), confirmed via `docker compose ps` both report `(healthy)` and that `postgres`/`kafka` uptimes (18 hours) were untouched by the scoped rebuild. Force-recreated `playstore-scraper` afterward and confirmed via `docker compose up`'s own output that it waited on `app-list-api-fastapi Healthy` before starting, then confirmed in its logs that its very first request after recreation (`GET /apps?active_only=true`) returned `200 OK` with no connection errors.
 
 ### Learned
-<!-- TODO: do NOT fill this in. The user must fill this in themselves, in their own words, after reviewing what was actually built. -->
+Learned that Ansible is a deployment-automation tool: instead of manually running Docker
+installs, creating `.env`, and starting the stack step by step, you describe the desired
+end state in a playbook and Ansible figures out what's already done versus what still
+needs to happen. The key difference from the existing bash scripts isn't that it solves a
+different problem -- `setup.sh`/`run.sh` already worked -- it's that Ansible is idempotent
+and declarative: running it repeatedly only changes what actually needs to change, rather
+than re-doing everything from scratch each time.
 
 ### Blockers / questions to raise
 - 9 of the 16 apps in this environment's live database still have placeholder `package_name` values (first flagged Day 6, still true today) - the seed script itself is correct, but fixing this live data needs targeted `PATCH` calls per app, not a re-seed (see above). Not blocking anything today, but worth doing before it causes confusing gaps in Day 10's Metabase analysis.
@@ -172,3 +288,37 @@
 
 ### Plan for tomorrow
 - Day 11: sentiment analysis on reviews (bonus) + final hardening (consistent logging, edge cases, being fully ready to explain every part of the project)
+
+## Day 11 — 2026-09-13
+
+### Done
+- Built `sentiment-analyzer` as a batch tool (same pattern as `network-analyzer`): reads reviews with `sentiment IS NULL`, classifies each as positive/neutral/negative, writes the result back.
+- Chose a lexicon-based (VADER-style) classifier over a transformer model, given the review text is mostly very short and colloquial Persian -- documented the reasoning (image size, inference cost, marginal benefit for this text style) in the service's README.
+- Preprocessing via `hazm`, with two real fixes found along the way: protecting sentiment-bearing and negation/intensifier words from `hazm`'s default stopword removal, and handling deliberately elongated words that `hazm`'s tokenizer doesn't split correctly.
+- Negation and intensifier handling: checks a window of nearby words for negators (checking *both* directions, since Persian negation follows the word, unlike English) and for intensifiers that scale a word's weight up.
+- 31 tests (preprocessing, classification on hand-picked clear examples, DB persistence/idempotency against a real test database).
+- Ran against the full live `reviews` table (~17,560 rows at the time): 11,085 positive / 5,303 neutral / 1,172 negative, in about 5 seconds; confirmed idempotent on re-run.
+- Closed a logging-consistency gap flagged on Day 10: added the same `logging.basicConfig` + named-logger pattern already used by the three background services to both API services, with explicit log lines on create/update/deactivate and the duplicate-package_name conflict case.
+
+### Learned
+Learned that a lexicon-based sentiment classifier is a word-by-word scoring approach: each
+word is checked against a hand-built list of positive/negative Persian words and given a
+weight, and the review's total score decides the label. The two things that make it more
+than "just keyword spotting" are negation handling (checking a window of nearby words for
+negators like "نیست", and -- unlike English -- checking *after* the word too, since
+Persian negation follows rather than precedes) and intensifier handling (words like "خیلی"
+before a sentiment word scale its weight up). Walked through a full example ("خیلی خوب
+نیست") end to end: "خوب" scores positive, gets flipped negative by the nearby "نیست", then
+scaled up by "خیلی", landing on a clearly negative final score.
+Also learned to be upfront about a real limitation: there's no measured accuracy
+percentage, because that requires a human-labeled ground-truth sample that wasn't built
+for this project. What we do have instead -- unit tests on hand-picked clear-cut examples,
+and the fact that the aggregate sentiment distribution lines up directionally with the
+apps' independently-collected star ratings -- are indirect, weaker forms of validation,
+not a substitute for a real measured accuracy number.
+
+### Blockers / questions to raise
+- (none)
+
+### Plan for tomorrow
+- Day 12: consolidate all design decisions into `docs/architecture.md`, polish the root README, and -- closer to final submission -- run the one remaining destructive test (full teardown and rebuild from scratch).
