@@ -77,7 +77,7 @@ important nuance worth being explicit about rather than glossing over:
   `reviews`, and `network_metrics` was still present and unchanged
   afterward.
 - **The stateless application services (`app-list-api-fastapi`,
-  `app-list-api-django`, `playstore-scraper`, `storage-consumer`) *do* get
+  `playstore-scraper`, `storage-consumer`) *do* get
   recreated on every run that passes `--build`, even when no source file
   changed.** This isn't a config-drift bug in this repo: BuildKit embeds a
   fresh build timestamp in the image config on every build, so even a

@@ -3,7 +3,7 @@
 This document consolidates the architecture decisions that were made service-by-service
 throughout development (see each service's own `README.md` and `DAILY_LOG.md` for the
 original context). Nothing here is new — it's a single place to read the reasoning
-without hunting across six services' READMEs and eleven days of logs.
+without hunting across five services' READMEs and eleven days of logs.
 
 ## System overview
 
@@ -11,7 +11,7 @@ The project is really **two independent data pipelines** that happen to write in
 same Postgres instance, plus one standalone batch tool that operates on data already
 sitting in that database:
 
-1. **Play Store data pipeline**: `app-list-api-fastapi` / `app-list-api-django` (the
+1. **Play Store data pipeline**: `app-list-api-fastapi` (the
    tracked-apps list) → `playstore-scraper` (reads the app list, scrapes the Play
    Store) → Kafka (`playstore-app-stats` / `playstore-app-reviews` topics, via the
    `libs/message_broker` abstraction) → `storage-consumer` (consumes both topics) →
@@ -37,16 +37,8 @@ Schema ownership below).
 table): create, list (with an `active_only` filter), partial update, and soft-delete
 (never a hard delete). Always-on (`restart: unless-stopped`), exposed on port 8001,
 with Swagger UI at `/docs`. Depends only on Postgres being healthy. It owns the `apps`
-table's Alembic migration history — every other service that needs the app list either
-reads this table's data through this service's schema, or (for `app-list-api-django`)
-reads the same physical table without managing it.
-
-**`app-list-api-django`** — A second, independent Django + DRF implementation of the
-exact same CRUD API (create/list/patch/soft-delete) against the same `apps` table, on
-port 8002 with Swagger UI at `/api/schema/swagger-ui/`. Always-on, depends only on
-Postgres. It exists as its own implementation, not a proxy to the FastAPI service — the
-two were built to be interchangeable from a client's perspective and were verified to
-read each other's writes.
+table's Alembic migration history — every other service that needs the app list reads
+this table's data through this service's schema.
 
 **`playstore-scraper`** — Fetches the current active app list from
 `app-list-api-fastapi`, scrapes each app's Play Store listing and recent reviews via
@@ -82,13 +74,13 @@ selected via `MESSAGE_BROKER_TYPE`. It has no independent lifecycle of its own �
 inside whichever service imports it.
 
 > **Note on service count**: the design brief for this document referred to "7
-> services." Only six independent services currently live under `services/`
-> (`app-list-api-fastapi`, `app-list-api-django`, `playstore-scraper`,
-> `storage-consumer`, `network-analyzer`, `sentiment-analyzer`); `libs/message_broker`
+> services." Only five independent services currently live under `services/`
+> (`app-list-api-fastapi`, `playstore-scraper`, `storage-consumer`,
+> `network-analyzer`, `sentiment-analyzer`); `libs/message_broker`
 > is a shared library, not a deployed service, and `postgres`/`kafka`/`metabase` are
 > third-party infrastructure containers, not services this project builds. See the
 > Part 3 checks at the end of this doc/PR for the same note — flagging it rather than
-> inventing a seventh service to match the number.
+> inventing more services to match the number.
 
 ## Key design decisions
 
@@ -98,11 +90,7 @@ Each table has exactly one owner, and ownership is enforced by which service hol
 Alembic (or Django) migration history for it, not just by convention:
 
 - **`apps`** is owned by `app-list-api-fastapi`'s Alembic history — its initial
-  migration is the schema's source of truth. `app-list-api-django`'s `App` model
-  declares `Meta.managed = False` specifically so that `python manage.py migrate` can
-  never create, alter, or drop this table; it only reads/writes the same physical table
-  that Alembic already created. This lets both API implementations be genuinely
-  interchangeable without either one fighting the other over schema changes.
+  migration is the schema's source of truth.
 - **`app_stats_snapshots`** and **`reviews`** are owned by `storage-consumer`'s own
   Alembic history.
 - **`network_metrics`** is owned by `network-analyzer`'s own Alembic history.
@@ -144,7 +132,7 @@ the stack that's actually up.
 
 ### Why `network-analyzer` and `sentiment-analyzer` are batch tools
 
-Unlike the other five services, these two are run via `docker compose run --rm` rather
+Unlike the other three services, these two are run via `docker compose run --rm` rather
 than being always-on:
 
 - **`network-analyzer`**: pcap files arrive from manual Wireshark/PCAPdroid captures,
@@ -275,11 +263,11 @@ Stated plainly, not hidden:
   and against hand-picked unit-test examples, but not against a human-labeled ground
   truth, so no precision/recall/accuracy figure exists for it.
 - **`playstore-scraper` and `storage-consumer` intentionally have no Docker
-  healthcheck**, unlike `app-list-api-fastapi`/`app-list-api-django`. This was a
+  healthcheck**, unlike `app-list-api-fastapi`. This was a
   deliberate priority call, not an oversight: nothing else's `depends_on` needs either
   of these two services to be healthy before starting in a specific order, whereas the
-  two API services gate `playstore-scraper`'s own startup and previously caused a real
-  race condition (see Day 4/Day 9 in `DAILY_LOG.md`) before they got healthchecks.
+  API service gates `playstore-scraper`'s own startup and previously caused a real
+  race condition (see Day 4/Day 9 in `DAILY_LOG.md`) before it got a healthcheck.
 - **The 9 apps whose package names were corrected late** (originally seeded with
   placeholder `com.placeholder.*` values, corrected across Days 2 and 4) have shorter
   historical data than the other 7 apps, since no real Play Store data could be scraped

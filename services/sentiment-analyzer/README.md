@@ -153,8 +153,7 @@ covers the `sentiment IS NULL` fetch/update logic and end-to-end idempotency
 against a real Postgres test database (`POSTGRES_TEST_DB_SENTIMENT_ANALYZER`),
 following this repo's usual "no mocking Postgres itself" convention — the
 `reviews` table is created there from DDL hand-copied from
-storage-consumer's migration (same pattern as `app-list-api-django`'s
-`conftest.py` for the `apps` table it likewise doesn't own).
+storage-consumer's migration.
 
 Since the image doesn't include the test suite or dev dependencies, run
 tests with the service directory bind-mounted over `/app`, same as

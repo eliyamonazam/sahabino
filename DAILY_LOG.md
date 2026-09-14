@@ -322,3 +322,20 @@ not a substitute for a real measured accuracy number.
 
 ### Plan for tomorrow
 - Day 12: consolidate all design decisions into `docs/architecture.md`, polish the root README, and -- closer to final submission -- run the one remaining destructive test (full teardown and rebuild from scratch).
+
+## Day 12 — 2026-09-15
+
+### Done
+- Removed `services/app-list-api-django` entirely -- not deprioritized like Redis, fully deleted from the repo. The reasoning: maintaining a second, independent API implementation without deep confidence in it added complexity disproportionate to the bonus points it earned; the call was to prioritize depth on the services that remain over collecting every possible bonus point.
+- Before deleting, grepped the whole repo for `app-list-api-django`, `8002`, and `APP_LIST_API_DJANGO` to confirm the full blast radius: the service's own `docker-compose.yml` block, `APP_LIST_API_DJANGO_PORT`/`POSTGRES_TEST_DB_DJANGO` in `.env`/`.env.example`, a line in `ansible/README.md`'s list of stateless application services, and comment-only mentions in `sentiment-analyzer`'s `tests/conftest.py` and `README.md` describing pattern parity with its `conftest.py`. Confirmed `playstore-scraper` and `network-analyzer` only ever call `app-list-api-fastapi` (`APP_LIST_API_URL` in `docker-compose.yml`, no other reference in either service's source), so no other service needed code changes.
+- Updated `docs/architecture.md`'s schema-ownership section to drop the Django-specific reasoning (its `Meta.managed = False` model, the cross-service consistency check between the two APIs) while keeping the still-true underlying reasoning intact: `storage-consumer` and `network-analyzer` still avoid FK-level references to `apps` to avoid coupling their schema evolution to another service's migration history. Updated service-count references from six to five services throughout the document, README's services table, and the bonus-features list.
+- Brought down and removed only the `app-list-api-django` container (`docker compose stop`/`rm`), then confirmed via `docker compose ps` that `postgres`, `kafka`, and the remaining five services were untouched.
+
+### Learned
+- TODO
+
+### Blockers / questions to raise
+<!-- The user will add their own conceptual questions here -->
+
+### Plan for tomorrow
+- TODO
