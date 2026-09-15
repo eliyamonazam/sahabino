@@ -1,6 +1,6 @@
 # app-list-api-fastapi
 
-FastAPI implementation of the app-list CRUD API (shares a database with the Django implementation). This service owns the Alembic migrations for the `apps` table — the Django implementation reads the same table but does not manage its schema.
+FastAPI implementation of the app-list CRUD API. This service owns the Alembic migrations for the `apps` table.
 
 ## Endpoints
 
