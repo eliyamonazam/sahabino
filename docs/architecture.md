@@ -262,12 +262,6 @@ Stated plainly, not hidden:
   has been checked for overall plausibility against the live data's label distribution
   and against hand-picked unit-test examples, but not against a human-labeled ground
   truth, so no precision/recall/accuracy figure exists for it.
-- **`playstore-scraper` and `storage-consumer` intentionally have no Docker
-  healthcheck**, unlike `app-list-api-fastapi`. This was a
-  deliberate priority call, not an oversight: nothing else's `depends_on` needs either
-  of these two services to be healthy before starting in a specific order, whereas the
-  API service gates `playstore-scraper`'s own startup and previously caused a real
-  race condition (see Day 4/Day 9 in `DAILY_LOG.md`) before it got a healthcheck.
 - **The 9 apps whose package names were corrected late** (originally seeded with
   placeholder `com.placeholder.*` values, corrected across Days 2 and 4) have shorter
   historical data than the other 7 apps, since no real Play Store data could be scraped

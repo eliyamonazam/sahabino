@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from consumer.config import get_config
 from consumer.database import build_session_factory
+from consumer.heartbeat import write_heartbeat
 from consumer.parsing import parse_review_message, parse_stats_message
 from consumer.persistence import insert_stats_snapshot, upsert_review
 from message_broker import get_broker
@@ -64,6 +65,17 @@ async def _consume_topic(
     await _run_consumer_loop(messages, handle_payload, ack, label)
 
 
+async def _heartbeat_loop(path: str, interval_seconds: int) -> None:
+    """Write a heartbeat on a fixed timer, independent of message arrival.
+
+    Runs alongside the two consume loops rather than being driven by them,
+    so a lull with nothing new on either topic still reports healthy.
+    """
+    while True:
+        write_heartbeat(path)
+        await asyncio.sleep(interval_seconds)
+
+
 async def main() -> None:
     config = get_config()
     session_factory = build_session_factory()
@@ -94,6 +106,7 @@ async def main() -> None:
                 handle_reviews,
                 "reviews",
             ),
+            _heartbeat_loop(config.heartbeat_file, config.heartbeat_interval_seconds),
         )
 
 

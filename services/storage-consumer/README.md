@@ -54,6 +54,27 @@ Note: this service shares its Postgres database (not just the instance) with
 independent histories, so this service's `alembic/env.py` configures a
 distinct `version_table` (`alembic_version_storage_consumer`).
 
+## Healthcheck
+
+This service has no HTTP server, so its Docker `HEALTHCHECK` can't poll a
+`/health` endpoint the way `app-list-api-fastapi`'s does. It also isn't a
+simple sleep/wake loop like `playstore-scraper` — it's two concurrent Kafka
+consume loops (`asyncio.gather` in `consumer/main.py`) that can sit idle for
+long stretches whenever neither topic has new messages, which is normal, not
+a hang. A per-message heartbeat would misreport that idle time as unhealthy,
+so instead a third coroutine (`_heartbeat_loop`) runs alongside the two
+consume loops and writes a heartbeat file (`consumer/heartbeat.py`) on a
+fixed timer, every `HEARTBEAT_INTERVAL_SECONDS` (default 60), independent of
+whether either loop has anything to process. The healthcheck
+(`docker-compose.yml`) checks that file's mtime is no older than three times
+that interval — three missed ticks in a row means the event loop itself has
+actually stalled or crashed, not just that the topics are quiet.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `HEARTBEAT_FILE` | `/tmp/heartbeat` | Path the heartbeat file is written to |
+| `HEARTBEAT_INTERVAL_SECONDS` | `60` | How often the heartbeat file is refreshed |
+
 ## Running migrations
 
 ```bash

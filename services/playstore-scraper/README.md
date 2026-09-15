@@ -43,6 +43,21 @@ same app's reviews from being attempted (or vice versa).
 | `PLAYSTORE_COUNTRY` | `ir` | Storefront country passed to google-play-scraper |
 | `PLAYSTORE_TOPIC` | `playstore-app-stats` | Topic app stats are published to |
 | `PLAYSTORE_REVIEWS_TOPIC` | `playstore-app-reviews` | Topic reviews are published to |
+| `HEARTBEAT_FILE` | `/tmp/heartbeat` | Path the heartbeat file is written to, see below |
+
+## Healthcheck
+
+This service has no HTTP server, so its Docker `HEALTHCHECK` can't poll a
+`/health` endpoint the way `app-list-api-fastapi`'s does. Instead,
+`scraper/heartbeat.py:write_heartbeat` touches a heartbeat file at the start
+of every scrape pass (`scraper/main.py`, before `run_once` — deliberately
+before, not after, so a pass that hangs or raises still leaves a heartbeat
+that reflects the loop having reached that iteration) and the healthcheck
+(`docker-compose.yml`) checks that file's mtime is no older than twice
+`SCRAPE_INTERVAL_SECONDS`. That multiple leaves one full interval of slack
+for a pass still in progress, plus one more before declaring the loop stuck
+— proving the loop is actually cycling, not just that the process exists,
+without flagging it unhealthy over an ordinary slow pass.
 
 ## Tests
 
