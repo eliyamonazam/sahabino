@@ -23,6 +23,9 @@ class Config:
         self.scrape_interval_seconds = int(os.getenv("SCRAPE_INTERVAL_SECONDS", "3600"))
         self.playstore_lang = os.getenv("PLAYSTORE_LANG", "fa")
         self.playstore_country = os.getenv("PLAYSTORE_COUNTRY", "ir")
+        # Read by the Docker healthcheck (see docker-compose.yml) to confirm
+        # the scrape loop is still cycling, not just that the process exists.
+        self.heartbeat_file = os.getenv("HEARTBEAT_FILE", "/tmp/heartbeat")
 
 
 def get_config() -> Config:

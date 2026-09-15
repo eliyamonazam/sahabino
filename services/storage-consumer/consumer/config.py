@@ -50,6 +50,11 @@ class Config:
         # Distinguishes consumer processes within a group; group membership
         # (not this name) is what determines message distribution.
         self.consumer_name = os.getenv("HOSTNAME", "storage-consumer")
+        # Read by the Docker healthcheck (see docker-compose.yml). Written on
+        # a fixed timer (not per message) so a quiet period with nothing to
+        # consume from either topic isn't mistaken for a hang.
+        self.heartbeat_file = os.getenv("HEARTBEAT_FILE", "/tmp/heartbeat")
+        self.heartbeat_interval_seconds = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "60"))
 
 
 def get_config() -> Config:

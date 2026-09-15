@@ -6,6 +6,7 @@ import httpx
 from message_broker import get_broker
 from scraper.app_list_client import AppListClient
 from scraper.config import Config, get_config
+from scraper.heartbeat import write_heartbeat
 from scraper.playstore import build_stats_payload, scrape_app_details
 from scraper.reviews import build_review_payload, scrape_app_reviews
 
@@ -58,6 +59,9 @@ async def main() -> None:
         app_list_client = AppListClient(http_client)
         async with get_broker() as broker:
             while True:
+                # Written at the start of the pass, before any scraping, so the
+                # healthcheck sees a live loop even if a pass runs long or fails.
+                write_heartbeat(config.heartbeat_file)
                 try:
                     await run_once(app_list_client, broker, config)
                 except Exception:
